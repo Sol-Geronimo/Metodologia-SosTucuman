@@ -1,11 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { Card, Button, Badge, Container } from "react-bootstrap";
-import {
-  LightbulbFill,
-  ConeStriped,
-  TrashFill,
-  Stoplights,
-} from "react-bootstrap-icons";
+import {LightbulbFill,ConeStriped,TrashFill,Stoplights,} from "react-bootstrap-icons";
 import axios from "axios";
 import Swal from "sweetalert2";
 import "bootstrap/dist/css/bootstrap.min.css";

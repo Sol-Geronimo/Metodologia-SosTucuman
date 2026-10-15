@@ -152,7 +152,7 @@ export default function AuthModal({ show, onHide }) {
                 <Tabs activeKey={tabActiva} onSelect={(k) => setTabActiva(k)} className="mb-4 nav-fill">
                     <Tab eventKey="login" title={<span className="fw-semibold">Iniciar sesión</span>}>
                         <Form onSubmit={handleLogin} noValidate>
-                            {/* ... Campos de Login (igual que los tenías) ... */}
+                            {/* ... Campos de Login ... */}
                             <Form.Group className="mb-3">
                                 <Form.Label className="fw-semibold small">Correo electrónico</Form.Label>
                                 <Form.Control type="email" placeholder="vos@correo.com" value={email} onChange={(e) => setEmail(e.target.value)} />
@@ -167,7 +167,7 @@ export default function AuthModal({ show, onHide }) {
 
                     <Tab eventKey="registro" title={<span className="fw-semibold">Registrarse</span>}>
                         <Form onSubmit={handleRegistro} noValidate>
-                            {/* ... Campos de Registro (igual que los tenías) ... */}
+                            {/* ... Campos de Registro  ... */}
                             <Form.Group className="mb-3">
                                 <Form.Label className="fw-semibold small">Nombre y apellido</Form.Label>
                                 <Form.Control type="text" placeholder="Ej: Sofía Pérez" value={nombre} onChange={(e) => setNombre(e.target.value)} />

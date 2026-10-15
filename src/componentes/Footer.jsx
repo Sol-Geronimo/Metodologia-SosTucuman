@@ -1,14 +1,5 @@
 import { Container, Row, Col } from "react-bootstrap";
-import {
-  Instagram,
-  Facebook,
-  TwitterX,
-  Whatsapp,
-  GeoAltFill,
-  EnvelopeFill,
-  TelephoneFill,
-  Tools,
-} from "react-bootstrap-icons";
+import {Instagram,Facebook,TwitterX,Whatsapp,GeoAltFill,EnvelopeFill,TelephoneFill,Tools,} from "react-bootstrap-icons";
 import logoImg from "../assets/imagenes/LOGOO.png";
 
 export default function Footer() {
