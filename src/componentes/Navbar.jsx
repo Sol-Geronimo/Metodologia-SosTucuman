@@ -1,14 +1,16 @@
 import { useState, useEffect } from "react";
-import { Navbar, Nav, Container, Button, NavDropdown } from "react-bootstrap";
+import { Navbar, Nav, Container, Button, NavDropdown, Badge } from "react-bootstrap";
 import logoImg from "../assets/imagenes/LOGOO.png";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
+import { ControladorAutenticacion } from "../services/api";
 
-export default function NavigationBar({ onAuth, onReport }) {
+export default function NavigationBar({ onAuth }) {
+  const location = useLocation();
   const [scrolled, setScrolled] = useState(false);
-  // Nuevo estado para guardar los datos del usuario
   const [usuario, setUsuario] = useState(null);
 
-  // Efecto para el cambio de color al hacer scroll
+  const esRutaInterna = location.pathname !== "/";
+
   useEffect(() => {
     const handleScroll = () => {
       setScrolled(window.scrollY > 60);
@@ -17,36 +19,23 @@ export default function NavigationBar({ onAuth, onReport }) {
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
-  // Efecto para verificar si hay un usuario guardado en localStorage
   useEffect(() => {
     const chequearUsuario = () => {
-      const nombreGuardado = localStorage.getItem("sostucumanNombre");
-      const emailGuardado = localStorage.getItem("sostucumanEmail");
-
-      if (nombreGuardado && emailGuardado) {
-        setUsuario({ nombre: nombreGuardado, email: emailGuardado });
-      } else {
-        setUsuario(null);
-      }
+      setUsuario(ControladorAutenticacion.obtenerSesionActual());
     };
-
-    // Chequeamos al cargar la página
     chequearUsuario();
-
-    // Escuchamos un evento personalizado por si el usuario se loguea desde otro componente
     window.addEventListener("usuarioActualizado", chequearUsuario);
     return () =>
       window.removeEventListener("usuarioActualizado", chequearUsuario);
   }, []);
 
-  // Función para cerrar sesión
   const cerrarSesion = () => {
-    localStorage.removeItem("sostucumanNombre");
-    localStorage.removeItem("sostucumanEmail");
+    ControladorAutenticacion.cerrarSesion();
     setUsuario(null);
-    // Avisamos al resto de la app que la sesión se cerró
-    window.dispatchEvent(new Event("usuarioActualizado"));
   };
+
+  const esOperador =
+    usuario && (usuario.rol === "moderador" || usuario.rol === "cuadrilla");
 
   return (
     <Navbar
@@ -55,14 +44,17 @@ export default function NavigationBar({ onAuth, onReport }) {
       variant="dark"
       style={{
         transition: "all 0.4s ease",
-        padding: scrolled ? "0.75rem 0" : "1.25rem 0",
-        background: scrolled ? "rgba(8, 47, 73, 0.98)" : "transparent",
-        backdropFilter: scrolled ? "blur(12px)" : "none",
-        borderBottom: scrolled ? "1px solid rgba(255,255,255,0.1)" : "none",
+        padding: scrolled || esRutaInterna ? "0.75rem 0" : "1.25rem 0",
+        background:
+          scrolled || esRutaInterna ? "rgba(8, 47, 73, 0.98)" : "transparent",
+        backdropFilter: scrolled || esRutaInterna ? "blur(12px)" : "none",
+        borderBottom:
+          scrolled || esRutaInterna
+            ? "1px solid rgba(255,255,255,0.1)"
+            : "none",
       }}
     >
       <Container>
-        {/* LOGO */}
         <Navbar.Brand
           as={Link}
           to="/"
@@ -87,18 +79,32 @@ export default function NavigationBar({ onAuth, onReport }) {
           </span>
         </Navbar.Brand>
 
-        {/* BOTÓN HAMBURGUESA */}
         <Navbar.Toggle
           aria-controls="menu-navegacion"
           className="border-0 shadow-none"
         />
 
-        {/* CONTENIDO DEL NAVBAR */}
         <Navbar.Collapse id="menu-navegacion">
-          <Nav className="mx-auto gap-2 gap-md-4 text-center my-3 my-md-0"></Nav>
+          <Nav className="mx-auto gap-2 gap-md-4 text-center my-3 my-md-0">
+            <Nav.Link as={Link} to="/" className="text-white fw-medium">
+              Inicio
+            </Nav.Link>
+            <Nav.Link as={Link} to="/reportes" className="text-white fw-medium">
+              Mapa y Reportes
+            </Nav.Link>
+            {esOperador && (
+              <Nav.Link
+                as={Link}
+                to="/gestion"
+                className="fw-bold"
+                style={{ color: "#fb923c" }}
+              >
+                Panel de Gestión
+              </Nav.Link>
+            )}
+          </Nav>
 
           <div className="d-flex flex-column flex-md-row align-items-center gap-2">
-            {/* RENDERIZADO CONDICIONAL: Si NO hay usuario, mostramos botones de Auth */}
             {!usuario ? (
               <>
                 <Button
@@ -128,7 +134,6 @@ export default function NavigationBar({ onAuth, onReport }) {
                 </Button>
               </>
             ) : (
-              /* RENDERIZADO CONDICIONAL: Si SÍ hay usuario, mostramos el Dropdown con su Avatar */
               <NavDropdown
                 align="end"
                 title={
@@ -146,7 +151,7 @@ export default function NavigationBar({ onAuth, onReport }) {
                     <span
                       className="d-none d-sm-inline-block text-truncate"
                       style={{
-                        maxWidth: "120px",
+                        maxWidth: "130px",
                         color: "white",
                         fontFamily: "Outfit",
                         fontWeight: 500,
@@ -166,13 +171,32 @@ export default function NavigationBar({ onAuth, onReport }) {
                     {usuario.nombre}
                   </p>
                   <small
-                    className="text-muted text-truncate d-block"
+                    className="text-muted text-truncate d-block mb-1"
                     style={{ fontSize: "0.8rem" }}
                   >
                     {usuario.email}
                   </small>
+                  <Badge bg={esOperador ? "warning" : "info"} text="dark">
+                    Rol: {usuario.rol.toUpperCase()}
+                  </Badge>
                 </div>
-                <NavDropdown.Item as={Link} to="/reportes" state={{ tabActiva: "mis-reportes" }} className="py-2 fw-medium">
+
+                {esOperador && (
+                  <NavDropdown.Item
+                    as={Link}
+                    to="/gestion"
+                    className="py-2 fw-bold text-primary"
+                  >
+                    Panel de Gestión (CU-04)
+                  </NavDropdown.Item>
+                )}
+
+                <NavDropdown.Item
+                  as={Link}
+                  to="/reportes"
+                  state={{ tabActiva: "mis-reportes" }}
+                  className="py-2 fw-medium"
+                >
                   Mis reportes
                 </NavDropdown.Item>
                 <NavDropdown.Divider />

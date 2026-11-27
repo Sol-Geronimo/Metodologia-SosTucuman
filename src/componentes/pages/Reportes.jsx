@@ -1,26 +1,49 @@
 import { useState, useEffect } from "react";
-import { Container, Row, Col, Card, Badge, Form, Button, InputGroup } from "react-bootstrap";
-import { Search, GridFill, PersonFill, GeoAltFill } from "react-bootstrap-icons";
-import axios from "axios";
+import {
+  Container,
+  Row,
+  Col,
+  Card,
+  Badge,
+  Form,
+  Button,
+  InputGroup,
+} from "react-bootstrap";
+import {
+  Search,
+  GridFill,
+  PersonFill,
+  GeoAltFill,
+  MapFill,
+  HandThumbsUpFill,
+  ClockHistory,
+} from "react-bootstrap-icons";
 import fondoreportes from "../../assets/imagenes/FotoFondoReportes.jpg";
 import { useLocation } from "react-router-dom";
+import Swal from "sweetalert2";
+import MapaInteractivo from "../MapaInteractivo";
+import {
+  ControladorAutenticacion,
+  ControladorValidacion,
+  RepositorioIncidente,
+  ESTADOS_FLUJO,
+} from "../../services/api";
 
-// Variable de entorno para JSON Server
-const API_URL = import.meta.env.VITE_API_URL;
-
-export default function ReportesPage() {
+export default function ReportesPage({ onVerDetalle }) {
   const location = useLocation();
   const [reportes, setReportes] = useState([]);
   const [usuario, setUsuario] = useState(null);
+  const [vistaMapa, setVistaMapa] = useState(false);
 
-  // Estados para Pestañas y Filtros
-  const [tabActiva, setTabActiva] = useState(location.state?.tabActiva || "todos");
+  const [tabActiva, setTabActiva] = useState(
+    location.state?.tabActiva || "todos"
+  );
   useEffect(() => {
     if (location.state?.tabActiva) {
       setTabActiva(location.state.tabActiva);
     }
-  }, [location.state]); 
-  
+  }, [location.state]);
+
   const [busqueda, setBusqueda] = useState("");
   const [categoria, setCategoria] = useState("Todas");
   const [estado, setEstado] = useState("Todos");
@@ -33,32 +56,15 @@ export default function ReportesPage() {
     "Semáforos y Tránsito",
   ];
 
-  const estadosDisponibles = [
-    "Todos",
-    "Pendiente",
-    "En proceso",
-    "En revisión",
-    "Resuelto",
-    "Urgente",
-  ];
+  const estadosDisponibles = ["Todos", ...ESTADOS_FLUJO];
 
-  // Consumimos los datos desde db.json con Axios
   const cargarDatos = async () => {
-    const nombreGuardado = localStorage.getItem("sostucumanNombre");
-    const emailGuardado = localStorage.getItem("sostucumanEmail");
-
-    if (nombreGuardado && emailGuardado) {
-      setUsuario({ nombre: nombreGuardado, email: emailGuardado });
-    } else {
-      setUsuario(null);
-    }
-
+    setUsuario(ControladorAutenticacion.obtenerSesionActual());
     try {
-      const respuesta = await axios.get(`${API_URL}/reportes`);
-      // Invertimos para ver los reportes más recientes primero
-      setReportes(respuesta.data.reverse());
+      const data = await RepositorioIncidente.obtenerTodos();
+      setReportes(data);
     } catch (error) {
-      console.error("Error al cargar los reportes desde la base de datos:", error);
+      console.error("Error al cargar los reportes:", error);
     }
   };
 
@@ -66,42 +72,68 @@ export default function ReportesPage() {
     cargarDatos();
     window.addEventListener("usuarioActualizado", cargarDatos);
     window.addEventListener("reporteCreado", cargarDatos);
-    
     return () => {
       window.removeEventListener("usuarioActualizado", cargarDatos);
       window.removeEventListener("reporteCreado", cargarDatos);
     };
   }, []);
 
-  // Lógica de filtrado combinada
+  const handleValidarIncidente = async (reporte) => {
+    if (!usuario) {
+      Swal.fire({
+        icon: "warning",
+        title: "Iniciá sesión",
+        text: "Debés iniciar sesión para apoyar un reclamo vecinal.",
+      });
+      return;
+    }
+
+    try {
+      const res = await ControladorValidacion.registrarValidacion(
+        usuario,
+        reporte.id
+      );
+      Swal.fire({
+        icon: "success",
+        title: res.mensaje,
+        toast: true,
+        position: "top-end",
+        timer: 2500,
+        showConfirmButton: false,
+      });
+    } catch (error) {
+      Swal.fire({
+        icon: "info",
+        title: "Validación ya registrada",
+        text: error.message,
+      });
+    }
+  };
+
   let reportesFiltrados = reportes;
 
-  // 1. Filtrar por pestaña (Todos vs Mis reportes)
   if (tabActiva === "mis-reportes" && usuario) {
     reportesFiltrados = reportesFiltrados.filter(
-      (r) => r.usuarioEmail === usuario.email,
+      (r) => r.usuarioEmail === usuario.email
     );
   }
 
-  // 2. Filtrar por búsqueda de texto (Título, Ubicación o Descripción)
   if (busqueda.trim() !== "") {
     const q = busqueda.toLowerCase();
     reportesFiltrados = reportesFiltrados.filter(
       (r) =>
         (r.titulo && r.titulo.toLowerCase().includes(q)) ||
         (r.ubicacion && r.ubicacion.toLowerCase().includes(q)) ||
-        (r.descripcion && r.descripcion.toLowerCase().includes(q)),
+        (r.descripcion && r.descripcion.toLowerCase().includes(q))
     );
   }
 
-  // 3. Filtrar por Categoría
   if (categoria !== "Todas") {
     reportesFiltrados = reportesFiltrados.filter(
-      (r) => r.categoria === categoria,
+      (r) => r.categoria === categoria
     );
   }
 
-  // 4. Filtrar por Estado
   if (estado !== "Todos") {
     reportesFiltrados = reportesFiltrados.filter((r) => r.estado === estado);
   }
@@ -115,16 +147,14 @@ export default function ReportesPage() {
   const obtenerColorEstado = (est) => {
     if (!est) return "#6c757d";
     switch (est.toLowerCase()) {
-      case "urgente":
-        return "#dc3545";
-      case "pendiente":
-        return "#fd7e14";
-      case "en proceso":
-        return "#0d6efd";
+      case "reportado":
+        return "#f97316";
       case "en revisión":
-        return "#6f42c1";
+        return "#8b5cf6";
+      case "en reparación":
+        return "#0ea5e9";
       case "resuelto":
-        return "#198754";
+        return "#10b981";
       default:
         return "#6c757d";
     }
@@ -171,7 +201,7 @@ export default function ReportesPage() {
           </h1>
           <p className="fs-5 opacity-75 mb-5" style={{ maxWidth: "700px" }}>
             Conocé qué está pasando en Tucumán, apoyá reclamos de otros vecinos
-            y seguí el estado de los tuyos.
+            y seguí el estado de los tuyos con trazabilidad pública.
           </p>
         </Container>
       </div>
@@ -187,11 +217,12 @@ export default function ReportesPage() {
         >
           <Button
             variant={tabActiva === "todos" ? "info" : "light"}
-            className={`flex-fill rounded-top-3 rounded-bottom-0 border-0 fw-bold px-2 px-md-4 py-2 py-md-3 d-flex align-items-center justify-content-center gap-1 gap-md-2 text-nowrap ${tabActiva === "todos" ? "text-white" : "text-muted bg-white"}`}
+            className={`flex-fill rounded-top-3 rounded-bottom-0 border-0 fw-bold px-2 px-md-4 py-2 py-md-3 d-flex align-items-center justify-content-center gap-1 gap-md-2 text-nowrap ${tabActiva === "todos" ? "text-white" : "text-muted bg-white"
+              }`}
             style={{
               backgroundColor:
                 tabActiva === "todos" ? "#0ea5e9" : "transparent",
-              fontSize: "clamp(0.75rem, 2.5vw, 1rem)", 
+              fontSize: "clamp(0.75rem, 2.5vw, 1rem)",
             }}
             onClick={() => {
               setTabActiva("todos");
@@ -199,8 +230,7 @@ export default function ReportesPage() {
             }}
           >
             <GridFill className="flex-shrink-0" />
-            <span className="d-none d-sm-inline">Todos los reportes</span>
-            <span className="d-inline d-sm-none">Todos</span>
+            <span>Todos los reportes</span>
             <Badge
               bg={tabActiva === "todos" ? "white" : "secondary"}
               text={tabActiva === "todos" ? "info" : "white"}
@@ -212,7 +242,10 @@ export default function ReportesPage() {
 
           <Button
             variant={tabActiva === "mis-reportes" ? "info" : "light"}
-            className={`flex-fill rounded-top-3 rounded-bottom-0 border-0 fw-bold px-2 px-md-4 py-2 py-md-3 d-flex align-items-center justify-content-center gap-1 gap-md-2 text-nowrap ${tabActiva === "mis-reportes" ? "text-white" : "text-muted bg-white"}`}
+            className={`flex-fill rounded-top-3 rounded-bottom-0 border-0 fw-bold px-2 px-md-4 py-2 py-md-3 d-flex align-items-center justify-content-center gap-1 gap-md-2 text-nowrap ${tabActiva === "mis-reportes"
+                ? "text-white"
+                : "text-muted bg-white"
+              }`}
             style={{
               backgroundColor:
                 tabActiva === "mis-reportes" ? "#0ea5e9" : "transparent",
@@ -235,39 +268,9 @@ export default function ReportesPage() {
           </Button>
         </div>
 
-        {/* CUERPO DE FILTROS BLANCO */}
+        {/* CUERPO DE FILTROS */}
         <div className="bg-white p-4 p-md-5 rounded-bottom-4 rounded-end-4 shadow-sm mb-5">
-          {/* BANNER MIS REPORTES */}
-          {tabActiva === "mis-reportes" && usuario && (
-            <div className="d-flex flex-column flex-md-row justify-content-between align-items-md-center bg-light p-4 rounded-4 mb-4 border">
-              <div className="d-flex align-items-center gap-3 mb-3 mb-md-0">
-                <div
-                  className="bg-info text-white rounded-circle d-flex align-items-center justify-content-center fw-bold fs-4 shadow-sm flex-shrink-0"
-                  style={{ width: "60px", height: "60px" }}
-                >
-                  <PersonFill />
-                </div>
-                <div>
-                  <h4 className="fw-bolder mb-1 text-dark">Mis reportes</h4>
-                  <p className="text-muted mb-0 small">
-                    Revisá avances, respuestas y cambios de estado de los
-                    problemas que informaste.
-                  </p>
-                </div>
-              </div>
-              <Button
-                onClick={() =>
-                  window.dispatchEvent(new Event("abrirModalReporte"))
-                }
-                className="rounded-pill fw-bold px-4 py-2 border-0 shadow-sm"
-                style={{ backgroundColor: "#f97316" }}
-              >
-                Crear otro reporte
-              </Button>
-            </div>
-          )}
-
-          {tabActiva === "mis-reportes" && !usuario && (
+          {tabActiva === "mis-reportes" && !usuario ? (
             <div className="text-center py-5">
               <h4 className="fw-bold text-dark mb-3">
                 Iniciá sesión para ver tus reportes
@@ -282,11 +285,7 @@ export default function ReportesPage() {
                 Iniciar sesión
               </Button>
             </div>
-          )}
-
-          {/* SECCIÓN DE FILTROS */}
-          {(tabActiva === "todos" ||
-            (tabActiva === "mis-reportes" && usuario)) && (
+          ) : (
             <>
               <Form.Group className="mb-4">
                 <Form.Label className="fw-bold small text-dark">
@@ -325,7 +324,7 @@ export default function ReportesPage() {
                 </Col>
                 <Col md={6}>
                   <Form.Label className="fw-bold small text-dark">
-                    Estado
+                    Estado (Flujo de 4 etapas)
                   </Form.Label>
                   <Form.Select
                     className="py-2 shadow-sm"
@@ -341,187 +340,183 @@ export default function ReportesPage() {
                 </Col>
               </Row>
 
-              <div className="d-grid mb-4">
+              <div className="d-flex flex-wrap justify-content-between align-items-center gap-2">
                 <Button
                   variant="light"
-                  className="fw-bold text-muted border py-2 rounded-3"
+                  className="fw-bold text-muted border py-2 px-4 rounded-3"
                   onClick={limpiarFiltros}
                 >
                   Limpiar filtros
                 </Button>
-              </div>
 
-              {/* PILLS DE CATEGORÍAS RÁPIDAS */}
-              <div
-                className="d-flex gap-2 overflow-x-auto pb-2"
-                style={{ scrollbarWidth: "none" }}
-              >
-                {categoriasDisponibles.map((cat) => (
+                <div className="d-flex gap-2">
                   <Button
-                    key={cat}
-                    variant={categoria === cat ? "info" : "white"}
-                    className={`rounded-pill px-4 py-2 border d-flex align-items-center gap-2 flex-shrink-0 fw-medium shadow-sm`}
-                    style={{
-                      backgroundColor: categoria === cat ? "#0ea5e9" : "white",
-                      color: categoria === cat ? "white" : "#495057",
-                    }}
-                    onClick={() => setCategoria(cat)}
+                    variant={!vistaMapa ? "dark" : "outline-secondary"}
+                    className="rounded-pill px-3 fw-semibold d-flex align-items-center gap-2"
+                    onClick={() => setVistaMapa(false)}
                   >
-                    {cat === "Todas" && <GridFill />}
-                    {cat}
+                    <GridFill /> Grilla
                   </Button>
-                ))}
+                  <Button
+                    variant={vistaMapa ? "info" : "outline-secondary"}
+                    className="rounded-pill px-3 fw-semibold d-flex align-items-center gap-2"
+                    onClick={() => setVistaMapa(true)}
+                  >
+                    <MapFill /> Mapa Interactivo
+                  </Button>
+                </div>
               </div>
             </>
           )}
         </div>
 
-        {/* TÍTULO RESULTADOS */}
+        {/* RESULTADOS: VISTA MAPA O GRILLA */}
         {(tabActiva === "todos" ||
           (tabActiva === "mis-reportes" && usuario)) && (
-          <div className="d-flex justify-content-between align-items-end mb-4 px-2">
-            <div>
-              <p
-                className="text-uppercase fw-bold text-info mb-1"
-                style={{ fontSize: "0.8rem", letterSpacing: "1px" }}
-              >
-                ACTIVIDAD CIUDADANA
-              </p>
-              <h3
-                className="fw-bolder text-dark mb-0"
-                style={{ fontFamily: "Outfit, sans-serif" }}
-              >
-                {tabActiva === "todos" ? "Todos los reportes" : "Tus reportes"}
-              </h3>
-            </div>
-            <p className="fw-bold text-muted mb-0">
-              {reportesFiltrados.length} resultados
-            </p>
-          </div>
-        )}
-
-        {/* GRILLA DE TARJETAS */}
-        <Row className="g-4">
-          {reportesFiltrados.map((reporte) => (
-            <Col xs={12} md={6} lg={4} key={reporte.id}>
-              <Card className="h-100 border-0 shadow-sm rounded-4 overflow-hidden">
-                {/* Contenedor de Imagen y Badges Superiores */}
-                <div
-                  className="position-relative bg-dark"
-                  style={{ height: "200px" }}
-                >
-                  {reporte.imagen || reporte.foto ? (
-                    <img
-                      src={reporte.imagen || reporte.foto}
-                      alt="Reporte"
-                      className="w-100 h-100 object-fit-cover opacity-75"
-                    />
-                  ) : (
-                    <div className="w-100 h-100 d-flex justify-content-center align-items-center text-white opacity-50 bg-secondary">
-                      Sin foto
-                    </div>
-                  )}
-
-                  {/* Badges Flotantes sobre la imagen */}
-                  <div className="position-absolute top-0 start-0 p-3 w-100 d-flex justify-content-between align-items-start">
-                    <Badge
-                      bg="white"
-                      text="dark"
-                      className="rounded-pill d-flex align-items-center px-2 py-1 shadow-sm border fw-bold"
-                    >
-                      <div
-                        className="rounded-circle me-2"
-                        style={{
-                          width: "10px",
-                          height: "10px",
-                          backgroundColor: obtenerColorEstado(reporte.estado),
-                        }}
-                      ></div>
-                      {reporte.estado || "Pendiente"}
-                    </Badge>
-
-                    {/* Badge Si es del usuario logueado */}
-                    {usuario && reporte.usuarioEmail === usuario.email && (
-                      <Badge
-                        className="rounded-pill px-3 py-1 shadow-sm text-white"
-                        style={{ backgroundColor: "#082f49" }}
-                      >
-                        Mi reporte
-                      </Badge>
-                    )}
-                  </div>
-                </div>
-
-                {/* Cuerpo de la Tarjeta */}
-                <Card.Body className="d-flex flex-column p-4">
-                  <div className="d-flex justify-content-between align-items-center mb-2">
-                    <small className="fw-bold" style={{ color: "#0ea5e9" }}>
-                      {reporte.categoria}
-                    </small>
-                    <small className="text-muted fw-medium">
-                      {reporte.fecha}
-                    </small>
-                  </div>
-
-                  <Card.Title className="fw-bold text-dark fs-5 mb-2">
-                    {reporte.titulo}
-                  </Card.Title>
-                  <Card.Text
-                    className="text-muted small mb-4"
-                    style={{
-                      display: "-webkit-box",
-                      WebkitLineClamp: "2",
-                      WebkitBoxOrient: "vertical",
-                      overflow: "hidden",
-                    }}
+            <>
+              <div className="d-flex justify-content-between align-items-end mb-4 px-2">
+                <div>
+                  <p
+                    className="text-uppercase fw-bold text-info mb-1"
+                    style={{ fontSize: "0.8rem", letterSpacing: "1px" }}
                   >
-                    {reporte.descripcion}
-                  </Card.Text>
-
-                  <div className="d-flex align-items-start text-muted small fw-medium mt-auto mb-4">
-                    <GeoAltFill className="text-danger me-2 mt-1 fs-6 flex-shrink-0" />
-                    <span className="text-truncate">{reporte.ubicacion}</span>
-                  </div>
-
-                  {/* Footer de la Tarjeta: Votos y Link */}
-                  <div className="d-flex justify-content-between align-items-center pt-3 border-top">
-                    <div className="d-flex gap-2">
-                      <Button
-                        variant="outline-success"
-                        size="sm"
-                        className="rounded-pill px-3 fw-bold d-flex align-items-center gap-1 bg-success bg-opacity-10 border-success border-opacity-25 text-success"
-                      >
-                        ↑ 16
-                      </Button>
-                    </div>
-                  </div>
-                </Card.Body>
-              </Card>
-            </Col>
-          ))}
-
-          {/* Mensaje si no hay resultados */}
-          {reportesFiltrados.length === 0 &&
-            (tabActiva === "todos" || usuario) && (
-              <Col xs={12}>
-                <div className="text-center py-5 bg-white rounded-4 shadow-sm border">
-                  <h4 className="fw-bold text-dark">
-                    No se encontraron reportes
-                  </h4>
-                  <p className="text-muted">
-                    Prueba limpiando los filtros o realizando otra búsqueda.
+                    ACTIVIDAD CIUDADANA
                   </p>
-                  <Button
-                    variant="outline-info"
-                    className="rounded-pill px-4 mt-2 fw-bold"
-                    onClick={limpiarFiltros}
+                  <h3
+                    className="fw-bolder text-dark mb-0"
+                    style={{ fontFamily: "Outfit, sans-serif" }}
                   >
-                    Limpiar filtros
-                  </Button>
+                    {tabActiva === "todos" ? "Todos los reportes" : "Tus reportes"}
+                  </h3>
                 </div>
-              </Col>
-            )}
-        </Row>
+                <p className="fw-bold text-muted mb-0">
+                  {reportesFiltrados.length} resultados
+                </p>
+              </div>
+
+              {vistaMapa ? (
+                <div className="bg-white p-2 rounded-4 shadow-sm border mb-4">
+                  <MapaInteractivo
+                    modo="publico"
+                    reportes={reportesFiltrados}
+                    onVerDetalle={onVerDetalle}
+                    altura="500px"
+                  />
+                </div>
+              ) : (
+                <Row className="g-4">
+                  {reportesFiltrados.map((reporte) => (
+                    <Col xs={12} md={6} lg={4} key={reporte.id}>
+                      <Card className="h-100 border-0 shadow-sm rounded-4 overflow-hidden">
+                        <div
+                          className="position-relative bg-dark"
+                          style={{ height: "200px", cursor: "pointer" }}
+                          onClick={() => onVerDetalle && onVerDetalle(reporte)}
+                        >
+                          {reporte.imagen ? (
+                            <img
+                              src={reporte.imagen}
+                              alt="Reporte"
+                              className="w-100 h-100 object-fit-cover opacity-85"
+                            />
+                          ) : (
+                            <div className="w-100 h-100 d-flex justify-content-center align-items-center text-white opacity-50 bg-secondary">
+                              Sin foto
+                            </div>
+                          )}
+
+                          <div className="position-absolute top-0 start-0 p-3 w-100 d-flex justify-content-between align-items-start">
+                            <Badge
+                              bg="white"
+                              text="dark"
+                              className="rounded-pill d-flex align-items-center px-2 py-1 shadow-sm border fw-bold"
+                            >
+                              <div
+                                className="rounded-circle me-2"
+                                style={{
+                                  width: "10px",
+                                  height: "10px",
+                                  backgroundColor: obtenerColorEstado(
+                                    reporte.estado
+                                  ),
+                                }}
+                              ></div>
+                              {reporte.estado}
+                            </Badge>
+
+                            {reporte.fotografia_cierre && (
+                              <Badge bg="success" className="rounded-pill shadow-sm">
+                                ✓ Evidencia cierre
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+
+                        <Card.Body className="d-flex flex-column p-4">
+                          <div className="d-flex justify-content-between align-items-center mb-2">
+                            <small
+                              className="fw-bold"
+                              style={{ color: "#0ea5e9" }}
+                            >
+                              {reporte.categoria}
+                            </small>
+                            <small className="text-muted fw-medium">
+                              {reporte.fecha}
+                            </small>
+                          </div>
+
+                          <Card.Title className="fw-bold text-dark fs-5 mb-2">
+                            {reporte.titulo}
+                          </Card.Title>
+                          <Card.Text
+                            className="text-muted small mb-4"
+                            style={{
+                              display: "-webkit-box",
+                              WebkitLineClamp: "2",
+                              WebkitBoxOrient: "vertical",
+                              overflow: "hidden",
+                            }}
+                          >
+                            {reporte.descripcion}
+                          </Card.Text>
+
+                          <div className="d-flex align-items-start text-muted small fw-medium mt-auto mb-3">
+                            <GeoAltFill className="text-danger me-2 mt-1 fs-6 flex-shrink-0" />
+                            <span className="text-truncate">
+                              {reporte.ubicacion}
+                            </span>
+                          </div>
+
+                          <div className="d-flex justify-content-between align-items-center pt-3 border-top gap-2">
+                            <Button
+                              variant="outline-success"
+                              size="sm"
+                              onClick={() => handleValidarIncidente(reporte)}
+                              className="rounded-pill px-3 fw-bold d-flex align-items-center gap-1"
+                            >
+                              <HandThumbsUpFill /> Me afecta (+
+                              {reporte.afectadosIniciales || 1})
+                            </Button>
+
+                            <Button
+                              variant="outline-primary"
+                              size="sm"
+                              onClick={() =>
+                                onVerDetalle && onVerDetalle(reporte)
+                              }
+                              className="rounded-pill px-3 fw-semibold d-flex align-items-center gap-1"
+                            >
+                              <ClockHistory /> Trazabilidad
+                            </Button>
+                          </div>
+                        </Card.Body>
+                      </Card>
+                    </Col>
+                  ))}
+                </Row>
+              )}
+            </>
+          )}
       </Container>
     </div>
   );
