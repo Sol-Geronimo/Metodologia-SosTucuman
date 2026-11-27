@@ -187,7 +187,7 @@ export default function NavigationBar({ onAuth }) {
                     to="/gestion"
                     className="py-2 fw-bold text-primary"
                   >
-                    Panel de Gestión (CU-04)
+                    Panel de Gestión 
                   </NavDropdown.Item>
                 )}
 
